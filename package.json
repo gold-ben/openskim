@@ -1,0 +1,19 @@
+{
+  "name": "openskim-web",
+  "version": "0.1.0",
+  "description": "Web app for local prompt optimization",
+  "private": true,
+  "scripts": {
+    "dev": "python -m http.server 8000",
+    "build": "echo 'No build needed - static site'",
+    "start": "python -m http.server 8000"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "wrangler": "^4.77.0"
+  }
+}

@@ -1,0 +1,2 @@
+name = "openskim"
+pages_build_output_dir = "." # Or "./public" if your HTML is in a folder
