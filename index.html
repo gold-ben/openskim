@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Shaver - Optimize Your Prompts</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 800px;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .setting-item input,
+        .setting-item select {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .setting-item input:focus,
+        .setting-item select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .setting-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .setting-hint {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .results h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .optimized-text {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 16px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .metric {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .copy-button {
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .copy-button:hover {
+            background: #5568d3;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 4px solid #c33;
+            display: none;
+        }
+
+        .estimate-note {
+            background: #fffbf0;
+            border-left: 4px solid #ff9800;
+            color: #e67e22;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 12px;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #667eea;
+            color: #1565c0;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✂️ Prompt Shaver</h1>
+        <p class="subtitle">Reduce your prompts locally. Save tokens. Cut costs.</p>
+
+        <div class="info-box">
+            💡 Processing happens entirely in your browser. No data is sent to any server.
+        </div>
+
+        <form id="optimizeForm">
+            <div class="form-group">
+                <label for="prompt">Paste your prompt:</label>
+                <textarea
+                    id="prompt"
+                    placeholder="Enter the prompt you want to reduce..."
+                    required
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <div class="setting-label">Target Tokens</div>
+                        <input
+                            type="number"
+                            id="targetTokens"
+                            min="10"
+                            max="500"
+                            value="50"
+                        >
+                        <div class="setting-hint">Preserves more at higher values</div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label">Intensity (α)</div>
+                        <input
+                            type="number"
+                            id="alpha"
+                            min="0.01"
+                            max="1.0"
+                            step="0.01"
+                            value="0.1"
+                        >
+                        <div class="setting-hint">Higher = more aggressive</div>
+                    </div>
+
+                    <div class="setting-item">
+                        <div class="setting-label">Model (Cost Calc)</div>
+                        <select id="model">
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-2.0">Gemini 2.0</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini</option>
+                            <option value="gpt-4o">GPT-4o</option>
+                            <option value="gpt-5.3">GPT-5.3</option>
+                            <option value="gpt-5.4">GPT-5.4</option>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="claude-3.5-haiku">Claude 3.5 Haiku</option>
+                            <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                            <option value="claude-3.5-opus">Claude 3.5 Opus</option>
+                            <option value="claude-opus-4.6">Claude Opus 4.6</option>
+                            <option value="mistral-large">Mistral Large</option>
+                            <option value="llama-2-7b">Llama 2 (Free)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn">Optimize Prompt</button>
+        </form>
+
+        <div class="loading" id="loading">
+            <span class="spinner"></span>
+            <span>Optimizing...</span>
+        </div>
+
+        <div class="results" id="results">
+            <h3>Optimized Prompt</h3>
+            <div class="optimized-text" id="optimizedText"></div>
+            <button class="copy-button" id="copyBtn">Copy to Clipboard</button>
+
+            <h3 style="margin-top: 20px;">Statistics</h3>
+            <div class="metrics" id="metrics"></div>
+            <div class="estimate-note" id="estimateNote">
+                💡 Cost savings are estimates based on current market rates. Actual costs may vary.
+            </div>
+        </div>
+
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        // Model pricing configuration
+        const MODELS = {
+            "gemini-1.5-flash": {
+                "name": "Google Gemini 1.5 Flash",
+                "input_cost_per_1k": 0.000125,
+            },
+            "gemini-1.5-pro": {
+                "name": "Google Gemini 1.5 Pro",
+                "input_cost_per_1k": 0.00125,
+            },
+            "gemini-2.0": {
+                "name": "Google Gemini 2.0",
+                "input_cost_per_1k": 0.002,
+            },
+            "gpt-4o-mini": {
+                "name": "OpenAI GPT-4o Mini",
+                "input_cost_per_1k": 0.00015,
+            },
+            "gpt-4o": {
+                "name": "OpenAI GPT-4o",
+                "input_cost_per_1k": 0.005,
+            },
+            "gpt-5.3": {
+                "name": "OpenAI GPT-5.3",
+                "input_cost_per_1k": 0.05,
+            },
+            "gpt-5.4": {
+                "name": "OpenAI GPT-5.4",
+                "input_cost_per_1k": 0.06,
+            },
+            "gpt-4": {
+                "name": "OpenAI GPT-4",
+                "input_cost_per_1k": 0.03,
+            },
+            "claude-3.5-haiku": {
+                "name": "Anthropic Claude 3.5 Haiku",
+                "input_cost_per_1k": 0.00080,
+            },
+            "claude-3.5-sonnet": {
+                "name": "Anthropic Claude 3.5 Sonnet",
+                "input_cost_per_1k": 0.003,
+            },
+            "claude-3.5-opus": {
+                "name": "Anthropic Claude 3.5 Opus",
+                "input_cost_per_1k": 0.015,
+            },
+            "claude-opus-4.6": {
+                "name": "Anthropic Claude Opus 4.6",
+                "input_cost_per_1k": 0.02,
+            },
+            "mistral-large": {
+                "name": "Mistral Large",
+                "input_cost_per_1k": 0.008,
+            },
+            "llama-2-7b": {
+                "name": "Open Source - Llama 2 7B",
+                "input_cost_per_1k": 0.0,
+            },
+        };
+
+        // Simple token counter (approximation - 1 token ≈ 4 characters)
+        function estimateTokenCount(text) {
+            return Math.ceil(text.split(/\s+/).length * 1.3);
+        }
+
+        // Lightweight optimizer - no ML dependencies
+        function optimizePrompt(text, targetTokens, alpha) {
+            // 1. Split into sentences and words
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            const words = text.split(/\s+/);
+
+            if (words.length === 0) {
+                return "";
+            }
+
+            // 2. Simple importance scoring based on word properties
+            const stopWords = new Set([
+                'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+                'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that',
+                'the', 'to', 'was', 'will', 'with', 'this', 'these', 'those',
+                'can', 'could', 'would', 'should', 'may', 'might', 'must', 'have'
+            ]);
+
+            const scoredWords = words.map((word, idx) => {
+                const lower = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const isStop = stopWords.has(lower);
+                const length = word.length;
+                const isNoun = /[A-Z]/.test(word); // Capitalized words (rough heuristic)
+                const position = idx / words.length; // Earlier words slightly weighted
+
+                // Score: penalize stop words, favor longer words and nouns, slight position bias
+                let score = 0.5;
+                if (!isStop) score += 0.4;
+                if (length > 5) score += 0.1;
+                if (isNoun) score += 0.2;
+                score -= position * 0.1;
+
+                return { word, score, idx };
+            });
+
+            // 3. Greedy selection based on value density
+            const selected = [];
+            let currentTokens = 0;
+
+            const candidates = scoredWords
+                .filter(w => !stopWords.has(w.word.toLowerCase().replace(/[^a-z0-9]/g, '')))
+                .sort((a, b) => b.score - a.score);
+
+            for (const candidate of candidates) {
+                const wordTokens = Math.ceil(candidate.word.length / 4);
+                const penalty = Math.exp(alpha * (currentTokens + wordTokens - targetTokens));
+                const utility = candidate.score - penalty;
+
+                if (utility > 0 && currentTokens < targetTokens * 2) {
+                    selected.push(candidate);
+                    currentTokens += wordTokens;
+                }
+            }
+
+            // 4. Reconstruct in original order
+            const selectedIndices = new Set(selected.map(w => w.idx));
+            const result = words
+                .filter((_, idx) => selectedIndices.has(idx))
+                .join(' ');
+
+            return result;
+        }
+
+        // Handle form submission
+        document.getElementById('optimizeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const prompt = document.getElementById('prompt').value.trim();
+            const targetTokens = parseInt(document.getElementById('targetTokens').value);
+            const alpha = parseFloat(document.getElementById('alpha').value);
+            const model = document.getElementById('model').value;
+
+            if (!prompt) {
+                document.getElementById('error').textContent = 'Please enter a prompt';
+                document.getElementById('error').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                // Run optimization
+                const optimized = optimizePrompt(prompt, targetTokens, alpha);
+                const inputTokens = estimateTokenCount(prompt);
+                const finalTokens = estimateTokenCount(optimized);
+                const savedTokens = inputTokens - finalTokens;
+
+                const modelInfo = MODELS[model] || MODELS["gemini-1.5-flash"];
+                const costPerK = modelInfo.input_cost_per_1k;
+
+                const originalCost = (inputTokens / 1000) * costPerK * 100;
+                const optimizedCost = (finalTokens / 1000) * costPerK * 100;
+                const centsSaved = originalCost - optimizedCost;
+
+                const reduction = inputTokens > 0 ? Math.round((savedTokens / inputTokens) * 100) : 0;
+
+                displayResults({
+                    optimized_prompt: optimized,
+                    metrics: {
+                        input_tokens: inputTokens,
+                        final_tokens: finalTokens,
+                        model_name: modelInfo.name,
+                        cents_saved: centsSaved,
+                        reduction_percent: reduction,
+                    }
+                });
+            } catch (error) {
+                document.getElementById('error').textContent = `Error: ${error.message}`;
+                document.getElementById('error').style.display = 'block';
+            } finally {
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        // Display results
+        function displayResults(result) {
+            const metrics = result.metrics;
+
+            document.getElementById('optimizedText').textContent = result.optimized_prompt;
+
+            let metricsHtml = `
+                <div class="metric">
+                    <div class="metric-value">${metrics.reduction_percent}%</div>
+                    <div class="metric-label">Reduction</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">${metrics.input_tokens - metrics.final_tokens}</div>
+                    <div class="metric-label">Tokens Saved</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">${metrics.input_tokens} → ${metrics.final_tokens}</div>
+                    <div class="metric-label">Token Count</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">$${(metrics.cents_saved / 100).toFixed(4)}</div>
+                    <div class="metric-label">${metrics.model_name}</div>
+                </div>
+            `;
+
+            document.getElementById('metrics').innerHTML = metricsHtml;
+            document.getElementById('results').classList.add('visible');
+
+            // Copy button
+            document.getElementById('copyBtn').onclick = () => {
+                navigator.clipboard.writeText(result.optimized_prompt);
+                const btn = document.getElementById('copyBtn');
+                const original = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                setTimeout(() => { btn.textContent = original; }, 2000);
+            };
+        }
+    </script>
+</body>
+</html>
