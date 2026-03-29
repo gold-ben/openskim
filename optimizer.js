@@ -123,27 +123,37 @@ const MODELS = {
     },
 };
 
-// Main optimization function
-function optimizePrompt(prompt, targetTokens = 50, alpha = 0.1, model = "gemini-1.5-flash") {
-    // 1. Clean text - remove stopwords and punctuation
-    const cleanedWords = prompt
-        .toLowerCase()
-        .split(/\s+/)
-        .filter(word => {
-            // Remove if stopword or pure punctuation
-            const isStopword = STOPWORDS.has(word.replace(/[^\w]/g, ''));
-            const isPunctuation = /^[^\w]+$/.test(word);
-            return !isStopword && !isPunctuation;
-        });
+// Main optimization function with selectable methods
+// method: 'saliency' (default) or 'every-nth' (every Nth word)
+function optimizePrompt(prompt, targetTokens = 50, alpha = 0.1, model = "gemini-1.5-flash", method = "saliency") {
+    // 1. Split by whitespace - keep all tokens including punctuation
+    const originalWords = prompt.split(/\s+/);
     
-    const cleanedText = cleanedWords.join(' ');
-    
-    if (cleanedWords.length === 0) {
+    // 2. Create metadata for each word
+    const wordMetadata = originalWords.map((word, idx) => {
+        const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
+        const isPunctuation = /^[^\w]+$/.test(cleanWord); // Pure punctuation
+        const isNumber = /^\d+$/.test(cleanWord); // Pure numbers
         return {
-            optimized_prompt: "",
+            original: word,
+            cleaned: cleanWord,
+            index: idx,
+            isPunctuation: isPunctuation,
+            isNumber: isNumber
+        };
+    });
+    
+    // 3. Extract cleaned text for keyword analysis (excluding pure punctuation and numbers)
+    const cleanedWordsForAnalysis = wordMetadata
+        .filter(w => !w.isPunctuation && !w.isNumber)
+        .map(w => w.cleaned);
+    
+    if (cleanedWordsForAnalysis.length === 0) {
+        return {
+            optimized_prompt: prompt, // Return original if no words to process
             metrics: {
-                input_tokens: 0,
-                final_tokens: 0,
+                input_tokens: countTokens(prompt),
+                final_tokens: countTokens(prompt),
                 target_threshold: targetTokens,
                 alpha: alpha,
                 model: model,
@@ -155,86 +165,84 @@ function optimizePrompt(prompt, targetTokens = 50, alpha = 0.1, model = "gemini-
         };
     }
     
-    // 2. Extract keywords using TF-IDF
-    const keywords = extractKeywords(cleanedText, cleanedWords.length);
+    // 4. Extract keywords using TF-IDF from non-punctuation words
+    const cleanedText = cleanedWordsForAnalysis.join(' ');
+    const keywords = extractKeywords(cleanedText, cleanedWordsForAnalysis.length);
     const saliencyMap = {};
     keywords.forEach(([word, score]) => {
         saliencyMap[word] = score;
     });
     
-    // 3. Unconstrained objective optimization
+    // 5. Create candidate words (only non-punctuation, non-number words for selection)
+    const candidates = [];
+    wordMetadata.forEach(meta => {
+        if (meta.isPunctuation || meta.isNumber) return; // Skip punctuation and numbers in selection
+        
+        const wordTokens = countTokens(meta.original);
+        const saliency = saliencyMap[meta.cleaned] || 0;
+        
+        candidates.push({
+            word: meta.original,
+            cleanWord: meta.cleaned,
+            tokens: wordTokens,
+            saliency: saliency,
+            valueDensity: saliency / Math.max(wordTokens, 1),
+            index: meta.index
+        });
+    });
+    
+    // 6. Sort by value density
+    candidates.sort((a, b) => b.valueDensity - a.valueDensity);
+    
+    // 7. Select words using chosen method
     const selected = [];
     let currentTokens = 0;
     const wordBonus = 0.05;
     
-    // Get original words (case-preserved)
-    const originalWords = prompt.split(/\s+/);
-    
-    // Create candidates with metadata
-    const candidates = [];
-    originalWords.forEach(word => {
-        const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
-        const wordTokens = countTokens(word);
-        const saliency = saliencyMap[cleanWord] || 0;
-        
-        candidates.push({
-            word: word,
-            cleanWord: cleanWord,
-            tokens: wordTokens,
-            saliency: saliency,
-            valueDensity: saliency / Math.max(wordTokens, 1)
+    if (method === "every-nth") {
+        // Every Nth word method: select every Nth word to reach target tokens
+        let n = Math.max(1, Math.floor(candidates.length / Math.max(1, targetTokens / 5)));
+        for (let i = 0; i < candidates.length; i += n) {
+            selected.push(candidates[i]);
+            currentTokens += candidates[i].tokens;
+        }
+    } else {
+        // Default saliency method: exponential penalty based on importance
+        candidates.forEach(candidate => {
+            const penalty = Math.exp(alpha * (currentTokens + candidate.tokens - targetTokens));
+            const utility = (candidate.saliency + wordBonus) - penalty;
+            
+            if (utility > 0) {
+                selected.push(candidate);
+                currentTokens += candidate.tokens;
+            }
         });
-    });
+    }
     
-    // Sort by value density
-    candidates.sort((a, b) => b.valueDensity - a.valueDensity);
+    // 8. Reconstruct maintaining original order (include ALL punctuation and numbers)
+    const selectedIndices = new Set();
     
-    // Select words using exponential penalty
-    candidates.forEach(candidate => {
-        const penalty = Math.exp(alpha * (currentTokens + candidate.tokens - targetTokens));
-        const utility = (candidate.saliency + wordBonus) - penalty;
-        
-        if (utility > 0) {
-            selected.push(candidate);
-            currentTokens += candidate.tokens;
-        }
-    });
-    
-    // Sort selected words back to original order
-    const selectedSet = new Set(selected.map((_, i) => originalWords.indexOf(selected[i].word)));
-    const optimizedWords = originalWords.filter((_, i) => {
-        for (let s of selected) {
-            if (s.word === originalWords[i]) {
-                selected.shift();
-                return true;
-            }
-        }
-        return false;
-    });
-    
-    // Reconstruct maintaining original order
-    const selectedIndices = [];
+    // Add selected word indices
     selected.forEach(s => {
-        for (let i = 0; i < originalWords.length; i++) {
-            if (originalWords[i] === s.word && !selectedIndices.includes(i)) {
-                selectedIndices.push(i);
-                break;
-            }
+        selectedIndices.add(s.index);
+    });
+    
+    // Always add punctuation and number indices
+    wordMetadata.forEach(meta => {
+        if (meta.isPunctuation || meta.isNumber) {
+            selectedIndices.add(meta.index);
         }
     });
-    selectedIndices.sort((a, b) => a - b);
-    const optimizedPrompt = selectedIndices.map(i => originalWords[i]).join(' ');
     
-    // 4. Calculate savings
+    // Sort indices and reconstruct
+    const sortedIndices = Array.from(selectedIndices).sort((a, b) => a - b);
+    const optimizedPrompt = sortedIndices.map(i => originalWords[i]).join(' ');
+    
+    // 9. Calculate savings
     const inputTokens = countTokens(prompt);
     const savedTokens = inputTokens - currentTokens;
     
     const modelInfo = MODELS[model] || MODELS["gemini-1.5-flash"];
-    const costPer1k = modelInfo.input_cost_per_1k;
-    
-    const originalCost = (inputTokens / 1000) * costPer1k * 100; // in cents
-    const optimizedCost = (currentTokens / 1000) * costPer1k * 100; // in cents
-    const centsSaved = originalCost - optimizedCost;
     
     const reductionPercent = inputTokens > 0 ? Math.round((savedTokens / inputTokens * 100) * 10) / 10 : 0;
     
@@ -243,18 +251,26 @@ function optimizePrompt(prompt, targetTokens = 50, alpha = 0.1, model = "gemini-
         metrics: {
             input_tokens: inputTokens,
             final_tokens: currentTokens,
+            saved_tokens: savedTokens,
             target_threshold: targetTokens,
             alpha: alpha,
             model: model,
             model_name: modelInfo.name,
-            cents_saved: Math.round(centsSaved * 10000) / 10000,
             reduction_percent: reductionPercent,
             is_estimate: true,
         }
     };
 }
 
+// Helper function to calculate every-Nth interval
+function calculateEveryNthInterval(totalWords, targetTokens) {
+    // Try to keep roughly targetTokens worth of words by calculating interval
+    if (totalWords <= targetTokens) return 1;
+    const reductionRatio = totalWords / targetTokens;
+    return Math.max(1, Math.floor(reductionRatio * 0.8)); // 0.8 factor for slight over-selection
+}
+
 // Export for use in browser or Node.js
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { optimizePrompt, countTokens, extractKeywords, MODELS };
+    module.exports = { optimizePrompt, countTokens, extractKeywords, MODELS, calculateEveryNthInterval };
 }
