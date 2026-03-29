@@ -355,9 +355,10 @@
         <div class="error" id="error"></div>
     </div>
 
+    <script src="optimizer.js"></script>
     <script>
-        // Model pricing configuration
-        const MODELS = {
+        // Extended model pricing configuration (matches HTML options)
+        const EXTENDED_MODELS = {
             "gemini-1.5-flash": {
                 "name": "Google Gemini 1.5 Flash",
                 "input_cost_per_1k": 0.000125,
@@ -416,74 +417,6 @@
             },
         };
 
-        // Simple token counter (approximation - 1 token ≈ 4 characters)
-        function estimateTokenCount(text) {
-            return Math.ceil(text.split(/\s+/).length * 1.3);
-        }
-
-        // Lightweight optimizer - no ML dependencies
-        function optimizePrompt(text, targetTokens, alpha) {
-            // 1. Split into sentences and words
-            const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-            const words = text.split(/\s+/);
-
-            if (words.length === 0) {
-                return "";
-            }
-
-            // 2. Simple importance scoring based on word properties
-            const stopWords = new Set([
-                'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
-                'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that',
-                'the', 'to', 'was', 'will', 'with', 'this', 'these', 'those',
-                'can', 'could', 'would', 'should', 'may', 'might', 'must', 'have'
-            ]);
-
-            const scoredWords = words.map((word, idx) => {
-                const lower = word.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const isStop = stopWords.has(lower);
-                const length = word.length;
-                const isNoun = /[A-Z]/.test(word); // Capitalized words (rough heuristic)
-                const position = idx / words.length; // Earlier words slightly weighted
-
-                // Score: penalize stop words, favor longer words and nouns, slight position bias
-                let score = 0.5;
-                if (!isStop) score += 0.4;
-                if (length > 5) score += 0.1;
-                if (isNoun) score += 0.2;
-                score -= position * 0.1;
-
-                return { word, score, idx };
-            });
-
-            // 3. Greedy selection based on value density
-            const selected = [];
-            let currentTokens = 0;
-
-            const candidates = scoredWords
-                .filter(w => !stopWords.has(w.word.toLowerCase().replace(/[^a-z0-9]/g, '')))
-                .sort((a, b) => b.score - a.score);
-
-            for (const candidate of candidates) {
-                const wordTokens = Math.ceil(candidate.word.length / 4);
-                const penalty = Math.exp(alpha * (currentTokens + wordTokens - targetTokens));
-                const utility = candidate.score - penalty;
-
-                if (utility > 0 && currentTokens < targetTokens * 2) {
-                    selected.push(candidate);
-                    currentTokens += wordTokens;
-                }
-            }
-
-            // 4. Reconstruct in original order
-            const selectedIndices = new Set(selected.map(w => w.idx));
-            const result = words
-                .filter((_, idx) => selectedIndices.has(idx))
-                .join(' ');
-
-            return result;
-        }
-
         // Handle form submission
         document.getElementById('optimizeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -504,34 +437,35 @@
             document.getElementById('loading').style.display = 'block';
 
             try {
-                // Run optimization
-                const optimized = optimizePrompt(prompt, targetTokens, alpha);
-                const inputTokens = estimateTokenCount(prompt);
-                const finalTokens = estimateTokenCount(optimized);
-                const savedTokens = inputTokens - finalTokens;
+                // Use optimizer.js function if available, otherwise use fallback
+                let result;
+                if (typeof optimizePrompt === 'function') {
+                    // Use the sophisticated optimizer from optimizer.js
+                    result = optimizePrompt(prompt, targetTokens, alpha, model);
+                } else {
+                    throw new Error('Optimizer module failed to load');
+                }
 
-                const modelInfo = MODELS[model] || MODELS["gemini-1.5-flash"];
-                const costPerK = modelInfo.input_cost_per_1k;
-
-                const originalCost = (inputTokens / 1000) * costPerK * 100;
-                const optimizedCost = (finalTokens / 1000) * costPerK * 100;
-                const centsSaved = originalCost - optimizedCost;
-
-                const reduction = inputTokens > 0 ? Math.round((savedTokens / inputTokens) * 100) : 0;
-
-                displayResults({
-                    optimized_prompt: optimized,
+                // Get model info from extended models or fallback
+                const modelInfo = EXTENDED_MODELS[model] || EXTENDED_MODELS["gemini-1.5-flash"];
+                
+                // Create display result with proper metrics
+                const displayResult = {
+                    optimized_prompt: result.optimized_prompt,
                     metrics: {
-                        input_tokens: inputTokens,
-                        final_tokens: finalTokens,
+                        input_tokens: result.metrics.input_tokens,
+                        final_tokens: result.metrics.final_tokens,
                         model_name: modelInfo.name,
-                        cents_saved: centsSaved,
-                        reduction_percent: reduction,
+                        cents_saved: result.metrics.cents_saved,
+                        reduction_percent: result.metrics.reduction_percent,
                     }
-                });
+                };
+
+                displayResults(displayResult);
             } catch (error) {
                 document.getElementById('error').textContent = `Error: ${error.message}`;
                 document.getElementById('error').style.display = 'block';
+                console.error('Optimization error:', error);
             } finally {
                 document.getElementById('submitBtn').disabled = false;
                 document.getElementById('loading').style.display = 'none';
